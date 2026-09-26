@@ -1,4 +1,4 @@
-"""XGBoost-based attack classification for network intrusion detection."""
+"""Stacking Ensemble Attack Classification for Network Intrusion Detection."""
 
 from __future__ import annotations
 
@@ -9,22 +9,32 @@ from typing import Optional, Tuple, Union
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score
-from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
 
+# Optional XGBoost import with scikit-learn fallback
+try:
+    from xgboost import XGBClassifier
+    HAS_XGBOOST = True
+except ImportError:
+    HAS_XGBOOST = False
+    logger.info("xgboost not installed; falling back to HistGradientBoostingClassifier.")
+
 
 class AttackClassifier:
-    """Train, evaluate, save, load, and use an XGBoost classifier for attack detection."""
+    """Train, evaluate, save, load, and use a Stacking Ensemble classifier for attack detection."""
 
     def __init__(
         self,
         model_path: Optional[Union[str, Path]] = None,
         random_state: int = 42,
-        n_estimators: int = 200,
+        n_estimators: int = 150,
         max_depth: int = 6,
         learning_rate: float = 0.1,
+        use_stacking: bool = True,
     ) -> None:
         """Initialize the classifier with model configuration and artifact paths."""
         self.project_root = Path(__file__).resolve().parents[1]
@@ -36,13 +46,13 @@ class AttackClassifier:
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.learning_rate = learning_rate
-        self.model: Optional[XGBClassifier] = None
+        self.use_stacking = use_stacking
+        self.model: Optional[Union[StackingClassifier, RandomForestClassifier]] = None
 
-    def train(self, X_train: Union[pd.DataFrame, np.ndarray], y_train: np.ndarray) -> XGBClassifier:
-        """Train the XGBoost classifier on the provided training data."""
-        logger.info("Training XGBoost classifier")
-        try:
-            self.model = XGBClassifier(
+    def _create_primary_gb_classifier(self):
+        """Create XGBoost or fallback HistGradientBoosting classifier."""
+        if HAS_XGBOOST:
+            return XGBClassifier(
                 n_estimators=self.n_estimators,
                 max_depth=self.max_depth,
                 learning_rate=self.learning_rate,
@@ -51,13 +61,70 @@ class AttackClassifier:
                 eval_metric="mlogloss",
                 use_label_encoder=False,
             )
+        return HistGradientBoostingClassifier(
+            max_iter=self.n_estimators,
+            max_depth=self.max_depth,
+            learning_rate=self.learning_rate,
+            random_state=self.random_state,
+        )
+
+    def train(self, X_train: Union[pd.DataFrame, np.ndarray], y_train: np.ndarray) -> object:
+        """Train the Stacking Ensemble classifier combining Gradient Boosting, RF, ExtraTrees, and HistGB with a Meta-Learner."""
+        logger.info("Training Stacking Ensemble classifier")
+        
+        gb_base = self._create_primary_gb_classifier()
+
+        if not self.use_stacking:
+            self.model = gb_base
             self.model.fit(X_train, y_train)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception("XGBoost training failed")
-            raise RuntimeError("Failed to train the classifier") from exc
+            self.save_model()
+            return self.model
+
+        rf_base = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=self.max_depth,
+            random_state=self.random_state,
+            n_jobs=-1,
+        )
+        
+        et_base = ExtraTreesClassifier(
+            n_estimators=100,
+            max_depth=self.max_depth,
+            random_state=self.random_state,
+            n_jobs=-1,
+        )
+
+        hgb_base = HistGradientBoostingClassifier(
+            max_iter=100,
+            max_depth=self.max_depth,
+            random_state=self.random_state,
+        )
+
+        estimators = [
+            ("gb_base", gb_base),
+            ("rf", rf_base),
+            ("extra_trees", et_base),
+            ("hist_gb", hgb_base),
+        ]
+
+        meta_learner = LogisticRegression(max_iter=1000, random_state=self.random_state)
+
+        try:
+            self.model = StackingClassifier(
+                estimators=estimators,
+                final_estimator=meta_learner,
+                cv=3,
+                n_jobs=-1,
+                passthrough=False,
+            )
+            self.model.fit(X_train, y_train)
+            logger.info("Stacking Ensemble classifier trained successfully")
+        except Exception as exc:
+            logger.warning("Stacking Ensemble failed (%s). Falling back to standalone base classifier.", exc)
+            self.model = gb_base
+            self.model.fit(X_train, y_train)
 
         self.save_model()
-        logger.info("XGBoost classifier trained successfully")
         return self.model
 
     def evaluate(
@@ -71,7 +138,7 @@ class AttackClassifier:
 
         try:
             predictions = self.model.predict(X_test)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.exception("Model prediction during evaluation failed")
             raise RuntimeError("Failed to generate predictions for evaluation") from exc
 
@@ -84,7 +151,7 @@ class AttackClassifier:
             "classification_report": classification_report(y_test, predictions),
         }
 
-        logger.info("Evaluation metrics: %s", metrics)
+        logger.info("Evaluation metrics: Accuracy=%.4f, Weighted F1=%.4f", metrics["accuracy"], metrics["f1"])
         return metrics
 
     def save_model(self) -> None:
@@ -95,11 +162,11 @@ class AttackClassifier:
         logger.info("Saving classifier to %s", self.model_path)
         try:
             joblib.dump(self.model, self.model_path)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.exception("Failed to save classifier")
             raise RuntimeError("Unable to save the classifier") from exc
 
-    def load_model(self) -> XGBClassifier:
+    def load_model(self) -> object:
         """Load a previously trained classifier from disk."""
         logger.info("Loading classifier from %s", self.model_path)
         if not self.model_path.exists():
@@ -107,7 +174,7 @@ class AttackClassifier:
 
         try:
             self.model = joblib.load(self.model_path)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.exception("Failed to load classifier")
             raise RuntimeError("Unable to load the classifier") from exc
 
@@ -120,7 +187,7 @@ class AttackClassifier:
 
         try:
             return self.model.predict(X)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.exception("Attack prediction failed")
             raise RuntimeError("Failed to predict attack type") from exc
 
@@ -131,6 +198,6 @@ class AttackClassifier:
 
         try:
             return self.model.predict_proba(X)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.exception("Probability prediction failed")
             raise RuntimeError("Failed to predict attack probabilities") from exc

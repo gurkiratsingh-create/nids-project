@@ -1,0 +1,20 @@
+=== SOC SECURITY INCIDENT AUDIT REPORT ===
+
+Total Incidents Logged: 16
+
+ID: 16 | Time: 2026-09-08 15:43:01 | Src: 192.168.1.226 -> Dst: 10.0.0.206 | Attack: BENIGN | Risk: 0.0486
+ID: 15 | Time: 2026-09-08 15:43:01 | Src: 45.33.87.32 -> Dst: 10.0.0.11 | Attack: BENIGN | Risk: 0.0855
+ID: 14 | Time: 2026-09-08 15:43:00 | Src: 192.168.1.85 -> Dst: 10.0.0.17 | Attack: BENIGN | Risk: 0.0503
+ID: 13 | Time: 2026-09-08 15:43:00 | Src: 45.33.170.79 -> Dst: 10.0.0.238 | Attack: BENIGN | Risk: 0.0914
+ID: 12 | Time: 2026-09-08 15:42:59 | Src: 192.168.1.236 -> Dst: 10.0.0.213 | Attack: BENIGN | Risk: 0.05
+ID: 11 | Time: 2026-09-08 15:42:59 | Src: 45.33.152.89 -> Dst: 10.0.0.43 | Attack: BENIGN | Risk: 0.1016
+ID: 10 | Time: 2026-09-08 15:42:58 | Src: 192.168.1.90 -> Dst: 10.0.0.163 | Attack: BENIGN | Risk: 0.0502
+ID: 9 | Time: 2026-09-08 15:42:58 | Src: 45.33.128.34 -> Dst: 10.0.0.77 | Attack: BENIGN | Risk: 0.104
+ID: 8 | Time: 2026-09-08 15:42:58 | Src: 45.33.104.251 -> Dst: 10.0.0.167 | Attack: BENIGN | Risk: 0.0635
+ID: 7 | Time: 2026-09-08 15:42:57 | Src: 192.168.1.144 -> Dst: 10.0.0.161 | Attack: BENIGN | Risk: 0.0492
+ID: 6 | Time: 2026-09-08 15:25:30 | Src: 192.168.1.88 -> Dst: 10.0.0.2 | Attack: BENIGN | Risk: 0.0826
+ID: 5 | Time: 2026-09-08 15:25:30 | Src: 172.16.0.44 -> Dst: 10.0.0.5 | Attack: BENIGN | Risk: 0.1188
+ID: 4 | Time: 2026-09-08 15:25:29 | Src: 192.168.1.15 -> Dst: 10.0.0.1 | Attack: BENIGN | Risk: 0.0548
+ID: 3 | Time: 2026-09-08 15:11:12 | Src: 192.168.1.88 -> Dst: 10.0.0.2 | Attack: BENIGN | Risk: 0.0826
+ID: 2 | Time: 2026-09-08 15:11:12 | Src: 172.16.0.44 -> Dst: 10.0.0.5 | Attack: BENIGN | Risk: 0.1188
+ID: 1 | Time: 2026-09-08 15:11:12 | Src: 192.168.1.15 -> Dst: 10.0.0.1 | Attack: BENIGN | Risk: 0.0548
